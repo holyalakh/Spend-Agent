@@ -194,6 +194,10 @@ def _attach_cognito_auth(apigw, authorizer_id: str):
     ]
     if "/chat/{job_id}" in paths:
         method_updates.append((paths["/chat/{job_id}"], "GET"))
+    if "/upload-url" in paths:
+        method_updates.append((paths["/upload-url"], "POST"))
+    if "/files" in paths:
+        method_updates.append((paths["/files"], "GET"))
 
     for resource_id, http_method in method_updates:
         apigw.update_method(

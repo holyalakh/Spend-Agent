@@ -35,6 +35,23 @@
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:ap-south-1:387957186026:log-group:/aws/lambda/SpendAgentAdapter:*"
+    },
+    {
+      "Sid": "ListUserUploads",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::spend-data-q",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["uploads/*", "spend-data/raw/*"]
+        }
+      }
+    },
+    {
+      "Sid": "ReadWriteObjects",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::spend-data-q/*"
     }
   ]
 }

@@ -9,7 +9,7 @@ from hooks import ReadOnlySqlHooks
 from memory import create_session_manager
 from session_store import SessionStore
 from tools.dashboard import _aggregate, get_dashboard_data
-from tools.load_data import _load_and_register, load_spend_data
+from tools.load_data import _load_and_register, _load_user_data, load_spend_data, load_user_data
 from tools.query import run_analysis_query
 
 SYSTEM_PROMPT = """
@@ -28,7 +28,8 @@ When a user asks a question:
 6. If a question is ambiguous, ask a clarifying question before querying.
 7. Never perform write operations on the data.
 
-Available tools: load_spend_data, run_analysis_query, get_dashboard_data.
+Available tools: load_user_data, load_spend_data, run_analysis_query, get_dashboard_data.
+User data is loaded automatically at session start from uploads/{user_sub}/ in S3.
 """
 
 model = BedrockModel(
@@ -63,6 +64,7 @@ async def chat(payload: dict) -> dict:
             return {"status": "error", "message": str(e)}
 
     session_id = payload.get("session_id", "default")
+    user_sub = payload.get("user_sub", session_id)
     message = payload.get("message", "")
     s3_key = payload.get("s3_file_key")
     user_email = payload.get("user_email", "")
@@ -73,10 +75,16 @@ async def chat(payload: dict) -> dict:
     if user_email:
         system_prompt = f"{SYSTEM_PROMPT.strip()}\n\nAuthenticated user email: {user_email}"
 
+    if not store.get(session_id, "conn"):
+        try:
+            _load_user_data(user_sub, session_id)
+        except Exception:
+            pass
+
     agent = Agent(
         model=model,
         system_prompt=system_prompt,
-        tools=[load_spend_data, run_analysis_query, get_dashboard_data],
+        tools=[load_user_data, load_spend_data, run_analysis_query, get_dashboard_data],
         session_manager=session_manager,
         hooks=[ReadOnlySqlHooks()],
     )

@@ -8,8 +8,10 @@ from botocore.exceptions import ClientError
 
 AGENT_RUNTIME_ARN = os.environ["AGENT_RUNTIME_ARN"]
 AWS_REGION = os.environ.get("AWS_REGION", "ap-south-1")
+S3_BUCKET = os.environ.get("S3_BUCKET_NAME", "spend-data-q")
 CHAT_JOBS_TABLE = os.environ.get("CHAT_JOBS_TABLE", "SpendAgentChatJobs")
 JOB_TTL_SECONDS = int(os.environ.get("CHAT_JOB_TTL_SECONDS", "86400"))
+UPLOAD_URL_EXPIRY = 300
 LAMBDA_FUNCTION_NAME = os.environ.get(
     "LAMBDA_FUNCTION_NAME", os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "SpendAgentAdapter")
 )
@@ -17,6 +19,7 @@ LAMBDA_FUNCTION_NAME = os.environ.get(
 agentcore = boto3.client("bedrock-agentcore", region_name=AWS_REGION)
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
 lambda_client = boto3.client("lambda", region_name=AWS_REGION)
+s3_client = boto3.client("s3", region_name=AWS_REGION)
 jobs_table = dynamodb.Table(CHAT_JOBS_TABLE)
 
 
@@ -99,6 +102,62 @@ def _auth_context(event) -> tuple[str, str]:
     if not sub:
         raise ValueError("Missing authenticated user (sub) in JWT claims")
     return sub, email
+
+
+def _user_upload_prefix(user_sub: str) -> str:
+    return f"uploads/{user_sub}/"
+
+
+def _validate_csv_filename(filename: str) -> bool:
+    if not filename or ".." in filename or "/" in filename or "\\" in filename:
+        return False
+    if len(filename) > 255:
+        return False
+    return filename.lower().endswith(".csv")
+
+
+def _assert_user_s3_key(user_sub: str, s3_key: str):
+    prefix = _user_upload_prefix(user_sub)
+    if not s3_key.startswith(prefix):
+        raise ValueError("Access denied: S3 key is outside your upload prefix")
+
+
+def _create_upload_url(user_sub: str, filename: str) -> dict:
+    s3_key = f"{_user_upload_prefix(user_sub)}{filename}"
+    upload_url = s3_client.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": S3_BUCKET,
+            "Key": s3_key,
+            "ContentType": "text/csv",
+        },
+        ExpiresIn=UPLOAD_URL_EXPIRY,
+    )
+    return {
+        "upload_url": upload_url,
+        "s3_key": s3_key,
+        "expires_in": UPLOAD_URL_EXPIRY,
+    }
+
+
+def _list_user_files(user_sub: str) -> list[dict]:
+    prefix = _user_upload_prefix(user_sub)
+    files = []
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if not key.lower().endswith(".csv") or key.endswith("/"):
+                continue
+            files.append(
+                {
+                    "filename": key[len(prefix) :],
+                    "s3_key": key,
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                }
+            )
+    return files
 
 
 def _create_chat_job(session_id: str, payload: dict) -> str:
@@ -234,25 +293,48 @@ def _handle_http(event, context):
         s3_file_key = params.get("s3_file_key", "")
         if not s3_file_key:
             return _response(400, {"error": "Missing query parameter: s3_file_key"})
+        try:
+            _assert_user_s3_key(session_id, s3_file_key)
+        except ValueError as e:
+            return _response(403, {"error": str(e)})
         payload = {
             "action": "dashboard",
             "session_id": session_id,
+            "user_sub": session_id,
             "user_email": user_email,
             "s3_file_key": s3_file_key,
         }
         result = _invoke_agentcore(payload, session_id)
         return _response(200, result)
 
+    if method == "GET" and path.rstrip("/").endswith("/files"):
+        return _response(200, {"files": _list_user_files(session_id)})
+
+    if method == "POST" and path.rstrip("/").endswith("/upload-url"):
+        body = json.loads(event.get("body") or "{}")
+        filename = body.get("filename", "")
+        if not _validate_csv_filename(filename):
+            return _response(400, {"error": "Only CSV files with a valid filename are supported"})
+        return _response(200, _create_upload_url(session_id, filename))
+
     if method == "POST" and path.rstrip("/").endswith("/chat"):
         body = json.loads(event.get("body") or "{}")
         if "message" not in body:
             return _response(400, {"error": "Missing required field: message"})
 
+        s3_file_key = body.get("s3_file_key", "")
+        if s3_file_key:
+            try:
+                _assert_user_s3_key(session_id, s3_file_key)
+            except ValueError as e:
+                return _response(403, {"error": str(e)})
+
         payload = {
             "session_id": session_id,
+            "user_sub": session_id,
             "user_email": user_email,
             "message": body["message"],
-            "s3_file_key": body.get("s3_file_key", ""),
+            "s3_file_key": s3_file_key,
         }
         new_job_id = _create_chat_job(session_id, payload)
         return _response(202, {"job_id": new_job_id, "status": "pending"})
