@@ -87,6 +87,20 @@ def _http_path(event) -> str:
     return event.get("path", event.get("rawPath", ""))
 
 
+def _auth_context(event) -> tuple[str, str]:
+    """Extract Cognito sub and email from API Gateway JWT authorizer claims."""
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("claims", {})
+    )
+    sub = claims.get("sub", "")
+    email = claims.get("email", "")
+    if not sub:
+        raise ValueError("Missing authenticated user (sub) in JWT claims")
+    return sub, email
+
+
 def _create_chat_job(session_id: str, payload: dict) -> str:
     job_id = str(uuid.uuid4())
     now = int(time.time())
@@ -175,10 +189,13 @@ def _process_chat_job(event: dict):
         )
 
 
-def _poll_chat_job(job_id: str):
+def _poll_chat_job(job_id: str, session_id: str):
     job = _get_chat_job(job_id)
     if not job:
         return _response(404, {"error": "Job not found", "job_id": job_id})
+
+    if job.get("session_id") != session_id:
+        return _response(403, {"error": "Forbidden", "job_id": job_id})
 
     status = job.get("status", "pending")
     body = {"job_id": job_id, "status": status}
@@ -204,11 +221,13 @@ def _handle_http(event, context):
     path_params = event.get("pathParameters") or {}
     job_id = path_params.get("job_id")
 
-    if method == "GET" and job_id:
-        return _poll_chat_job(job_id)
+    try:
+        session_id, user_email = _auth_context(event)
+    except ValueError as e:
+        return _response(401, {"error": str(e)})
 
-    request_context = event.get("requestContext", {})
-    session_id = request_context.get("requestId", "default")
+    if method == "GET" and job_id:
+        return _poll_chat_job(job_id, session_id)
 
     if method == "GET" and "dashboard" in path:
         params = event.get("queryStringParameters") or {}
@@ -217,10 +236,11 @@ def _handle_http(event, context):
             return _response(400, {"error": "Missing query parameter: s3_file_key"})
         payload = {
             "action": "dashboard",
-            "session_id": params.get("session_id", session_id),
+            "session_id": session_id,
+            "user_email": user_email,
             "s3_file_key": s3_file_key,
         }
-        result = _invoke_agentcore(payload, payload["session_id"])
+        result = _invoke_agentcore(payload, session_id)
         return _response(200, result)
 
     if method == "POST" and path.rstrip("/").endswith("/chat"):
@@ -228,9 +248,9 @@ def _handle_http(event, context):
         if "message" not in body:
             return _response(400, {"error": "Missing required field: message"})
 
-        session_id = body.get("session_id") or session_id
         payload = {
             "session_id": session_id,
+            "user_email": user_email,
             "message": body["message"],
             "s3_file_key": body.get("s3_file_key", ""),
         }

@@ -65,12 +65,17 @@ async def chat(payload: dict) -> dict:
     session_id = payload.get("session_id", "default")
     message = payload.get("message", "")
     s3_key = payload.get("s3_file_key")
+    user_email = payload.get("user_email", "")
 
     session_manager = create_session_manager(session_id)
 
+    system_prompt = SYSTEM_PROMPT
+    if user_email:
+        system_prompt = f"{SYSTEM_PROMPT.strip()}\n\nAuthenticated user email: {user_email}"
+
     agent = Agent(
         model=model,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         tools=[load_spend_data, run_analysis_query, get_dashboard_data],
         session_manager=session_manager,
         hooks=[ReadOnlySqlHooks()],
