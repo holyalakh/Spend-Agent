@@ -1,0 +1,10 @@
+Downloading current runtime artifact s3://spend-data-q/spend-agent-deploy/patched-1779044713.zip ...
+Patching source files...
+Uploading to s3://spend-data-q/spend-agent-deploy/patched-1779044924.zip ...
+{
+  "s3_key": "spend-agent-deploy/patched-1779044924.zip",
+  "status": "UPDATING"
+}
+  status=UPDATING
+  status=UPDATING
+  status=READY

@@ -1,0 +1,16 @@
+{
+  "targets": {
+    "default": {
+      "resources": {
+        "runtimes": {
+          "MyAgent": {
+            "runtimeId": "spendagentv1_MyAgent-TeCbnqAkL9",
+            "runtimeArn": "arn:aws:bedrock-agentcore:ap-south-1:387957186026:runtime/spendagentv1_MyAgent-TeCbnqAkL9",
+            "roleArn": "arn:aws:iam::387957186026:role/AgentCore-spendagentv1-de-ApplicationAgentMyAgentRu-kiEITq1KlBLD"
+          }
+        },
+        "stackName": "AgentCore-spendagentv1-default"
+      }
+    }
+  }
+}

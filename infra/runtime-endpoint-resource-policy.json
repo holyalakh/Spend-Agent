@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowLambdaAdapter",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::387957186026:role/SpendAgentLambdaRole"
+      },
+      "Action": "bedrock-agentcore:InvokeAgentRuntime",
+      "Resource": "arn:aws:bedrock-agentcore:ap-south-1:387957186026:runtime/spendagentv1_MyAgent-TeCbnqAkL9/runtime-endpoint/DEFAULT"
+    }
+  ]
+}

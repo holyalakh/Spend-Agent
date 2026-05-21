@@ -1,0 +1,13 @@
+Downloading current runtime artifact s3://spend-data-q/spend-agent-deploy/patched-1779045005.zip ...
+Traceback (most recent call last):
+  File "/home/alakh/Documents/Spend prod/spend-analytics-agent/scripts/patch_runtime_artifact.py", line 118, in <module>
+    main()
+  File "/home/alakh/Documents/Spend prod/spend-analytics-agent/scripts/patch_runtime_artifact.py", line 57, in main
+    zf.extractall(extract_dir)
+  File "/usr/lib/python3.12/zipfile/__init__.py", line 1757, in extractall
+    self._extract_member(zipinfo, path, pwd)
+  File "/usr/lib/python3.12/zipfile/__init__.py", line 1815, in _extract_member
+    shutil.copyfileobj(source, target)
+  File "/usr/lib/python3.12/shutil.py", line 204, in copyfileobj
+    fdst_write(buf)
+OSError: [Errno 28] No space left on device

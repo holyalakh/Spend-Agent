@@ -1,0 +1,40 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeAgentCore",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeAgentRuntime",
+      "Resource": [
+        "arn:aws:bedrock-agentcore:ap-south-1:387957186026:runtime/spendagentv1_MyAgent-TeCbnqAkL9",
+        "arn:aws:bedrock-agentcore:ap-south-1:387957186026:runtime/spendagentv1_MyAgent-TeCbnqAkL9/runtime-endpoint/DEFAULT"
+      ]
+    },
+    {
+      "Sid": "ChatJobsDynamoDB",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-south-1:387957186026:table/SpendAgentChatJobs"
+    },
+    {
+      "Sid": "AsyncSelfInvoke",
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:ap-south-1:387957186026:function:SpendAgentAdapter"
+    },
+    {
+      "Sid": "BasicLambdaExecution",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:ap-south-1:387957186026:log-group:/aws/lambda/SpendAgentAdapter:*"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AgentCoreMemoryAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock-agentcore:ListEvents",
+        "bedrock-agentcore:PutMemoryEvent",
+        "bedrock-agentcore:GetMemoryRecord",
+        "bedrock-agentcore:ListMemoryRecords",
+        "bedrock-agentcore:CreateEvent",
+        "bedrock-agentcore:GetEvent",
+        "bedrock-agentcore:DeleteEvent"
+      ],
+      "Resource": [
+        "arn:aws:bedrock-agentcore:ap-south-1:387957186026:memory/SpendAgentMemory-g559227mzt",
+        "arn:aws:bedrock-agentcore:ap-south-1:387957186026:memory/SpendAgentMemory-g559227mzt/*"
+      ]
+    },
+    {
+      "Sid": "BedrockInvokeAndGuardrail",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:ApplyGuardrail"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:ap-south-1:387957186026:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:ap-south-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:ap-south-1:387957186026:guardrail/n0b79yy16s8i"
+      ]
+    },
+    {
+      "Sid": "S3SpendDataRead",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::spend-data-q",
+        "arn:aws:s3:::spend-data-q/*"
+      ]
+    }
+  ]
+}
