@@ -107,22 +107,43 @@ def _data_summary(conn) -> dict:
     }
 
 
+def _resolve_user_sub(user_sub: str, session_id: str) -> str:
+    """Prefer user_sub stored on the session (set by main.py from JWT)."""
+    stored = store.get(session_id, "user_sub")
+    if stored:
+        return stored
+    return user_sub
+
+
 def _load_user_data(user_sub: str, session_id: str = "default") -> dict:
     """Load user CSV uploads, or fall back to the shared dataset."""
+    resolved_sub = _resolve_user_sub(user_sub, session_id)
+    if not resolved_sub:
+        return {"status": "error", "message": "No user_sub available for this session."}
+
     s3 = boto3.client("s3")
-    user_keys = _list_csv_keys(s3, _user_upload_prefix(user_sub))
+    prefix = _user_upload_prefix(resolved_sub)
+    print(
+        f"load_user_data: bucket={S3_BUCKET} prefix={prefix} "
+        f"user_sub={resolved_sub} session_id={session_id}"
+    )
+
+    user_keys = _list_csv_keys(s3, prefix)
     source = "user_uploads"
 
     if not user_keys:
+        print(f"load_user_data: no files under {prefix}, falling back to {SHARED_PREFIX}")
         user_keys = _list_csv_keys(s3, SHARED_PREFIX)
         source = "shared"
 
     if not user_keys:
         return {
             "status": "error",
-            "message": "No CSV files found in user uploads or shared dataset.",
+            "message": f"No CSV files found under {prefix} or {SHARED_PREFIX}.",
+            "prefix_checked": prefix,
         }
 
+    print(f"load_user_data: loading {len(user_keys)} file(s): {user_keys}")
     frames = [_read_s3_dataframe(s3, key) for key in user_keys]
     df = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     conn = _register_dataframe(df, session_id, user_keys)
@@ -141,15 +162,15 @@ def _load_and_register(s3_file_key: str, session_id: str = "default"):
 
 
 @tool
-def load_user_data(user_sub: str, session_id: str = "default") -> dict:
+def load_user_data(session_id: str = "default", user_sub: str = "") -> dict:
     """
     Load the authenticated user's uploaded CSV files from S3 into DuckDB.
-    Falls back to the shared dataset at spend-data/raw/ when the user has no uploads.
-    Returns a summary: row count, date range, categories, and source files loaded.
+    Lists uploads/{user_sub}/ on S3; falls back to spend-data/raw/ when empty.
+    user_sub is resolved from the session if omitted.
 
     Args:
-        user_sub: Cognito user sub (unique user identifier)
         session_id: Current session identifier
+        user_sub: Cognito user sub (optional — resolved from session when omitted)
     """
     try:
         return _load_user_data(user_sub, session_id)

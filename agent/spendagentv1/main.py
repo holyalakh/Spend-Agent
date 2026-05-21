@@ -64,7 +64,7 @@ async def chat(payload: dict) -> dict:
             return {"status": "error", "message": str(e)}
 
     session_id = payload.get("session_id", "default")
-    user_sub = payload.get("user_sub", session_id)
+    user_sub = payload.get("user_sub") or session_id
     message = payload.get("message", "")
     s3_key = payload.get("s3_file_key")
     user_email = payload.get("user_email", "")
@@ -74,12 +74,17 @@ async def chat(payload: dict) -> dict:
     system_prompt = SYSTEM_PROMPT
     if user_email:
         system_prompt = f"{SYSTEM_PROMPT.strip()}\n\nAuthenticated user email: {user_email}"
+    system_prompt = f"{system_prompt.strip()}\n\nAuthenticated user_sub: {user_sub}"
+
+    store.set(session_id, "user_sub", user_sub)
 
     if not store.get(session_id, "conn"):
         try:
-            _load_user_data(user_sub, session_id)
-        except Exception:
-            pass
+            load_result = _load_user_data(user_sub, session_id)
+            if load_result.get("status") == "error":
+                print(f"auto load_user_data failed: {load_result}")
+        except Exception as e:
+            print(f"auto load_user_data exception: {e}")
 
     agent = Agent(
         model=model,

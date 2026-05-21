@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-cursor-border;
+  }
+}
+
+@layer components {
+  .prose-agent {
+    @apply text-sm leading-relaxed text-cursor-text;
+  }
+
+  .prose-agent p {
+    @apply mb-2 last:mb-0;
+  }
+
+  .prose-agent ul,
+  .prose-agent ol {
+    @apply mb-2 ml-4 list-disc;
+  }
+
+  .prose-agent ol {
+    @apply list-decimal;
+  }
+
+  .prose-agent code {
+    @apply rounded bg-cursor-bg px-1 py-0.5 font-mono text-xs text-cursor-text;
+  }
+
+  .prose-agent pre {
+    @apply mb-2 overflow-x-auto rounded-md bg-cursor-bg p-3 font-mono text-xs;
+  }
+
+  .prose-agent pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .prose-agent h1,
+  .prose-agent h2,
+  .prose-agent h3 {
+    @apply mb-2 font-semibold text-cursor-text;
+  }
+
+  .prose-agent table {
+    @apply mb-2 w-full border-collapse text-xs;
+  }
+
+  .prose-agent th,
+  .prose-agent td {
+    @apply border border-cursor-border px-2 py-1;
+  }
+
+  .prose-agent a {
+    @apply text-cursor-accent underline;
+  }
+}

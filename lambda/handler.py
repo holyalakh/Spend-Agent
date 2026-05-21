@@ -12,6 +12,7 @@ S3_BUCKET = os.environ.get("S3_BUCKET_NAME", "spend-data-q")
 CHAT_JOBS_TABLE = os.environ.get("CHAT_JOBS_TABLE", "SpendAgentChatJobs")
 JOB_TTL_SECONDS = int(os.environ.get("CHAT_JOB_TTL_SECONDS", "86400"))
 UPLOAD_URL_EXPIRY = 300
+UPLOAD_CONTENT_TYPE = "text/csv"
 LAMBDA_FUNCTION_NAME = os.environ.get(
     "LAMBDA_FUNCTION_NAME", os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "SpendAgentAdapter")
 )
@@ -129,14 +130,16 @@ def _create_upload_url(user_sub: str, filename: str) -> dict:
         Params={
             "Bucket": S3_BUCKET,
             "Key": s3_key,
-            "ContentType": "text/csv",
+            "ContentType": UPLOAD_CONTENT_TYPE,
         },
         ExpiresIn=UPLOAD_URL_EXPIRY,
+        HttpMethod="PUT",
     )
     return {
         "upload_url": upload_url,
         "s3_key": s3_key,
         "expires_in": UPLOAD_URL_EXPIRY,
+        "content_type": UPLOAD_CONTENT_TYPE,
     }
 
 
@@ -281,12 +284,12 @@ def _handle_http(event, context):
     job_id = path_params.get("job_id")
 
     try:
-        session_id, user_email = _auth_context(event)
+        user_sub, user_email = _auth_context(event)
     except ValueError as e:
         return _response(401, {"error": str(e)})
 
     if method == "GET" and job_id:
-        return _poll_chat_job(job_id, session_id)
+        return _poll_chat_job(job_id, user_sub)
 
     if method == "GET" and "dashboard" in path:
         params = event.get("queryStringParameters") or {}
@@ -294,28 +297,28 @@ def _handle_http(event, context):
         if not s3_file_key:
             return _response(400, {"error": "Missing query parameter: s3_file_key"})
         try:
-            _assert_user_s3_key(session_id, s3_file_key)
+            _assert_user_s3_key(user_sub, s3_file_key)
         except ValueError as e:
             return _response(403, {"error": str(e)})
         payload = {
             "action": "dashboard",
-            "session_id": session_id,
-            "user_sub": session_id,
+            "session_id": user_sub,
+            "user_sub": user_sub,
             "user_email": user_email,
             "s3_file_key": s3_file_key,
         }
-        result = _invoke_agentcore(payload, session_id)
+        result = _invoke_agentcore(payload, user_sub)
         return _response(200, result)
 
     if method == "GET" and path.rstrip("/").endswith("/files"):
-        return _response(200, {"files": _list_user_files(session_id)})
+        return _response(200, {"files": _list_user_files(user_sub)})
 
     if method == "POST" and path.rstrip("/").endswith("/upload-url"):
         body = json.loads(event.get("body") or "{}")
         filename = body.get("filename", "")
         if not _validate_csv_filename(filename):
             return _response(400, {"error": "Only CSV files with a valid filename are supported"})
-        return _response(200, _create_upload_url(session_id, filename))
+        return _response(200, _create_upload_url(user_sub, filename))
 
     if method == "POST" and path.rstrip("/").endswith("/chat"):
         body = json.loads(event.get("body") or "{}")
@@ -325,18 +328,18 @@ def _handle_http(event, context):
         s3_file_key = body.get("s3_file_key", "")
         if s3_file_key:
             try:
-                _assert_user_s3_key(session_id, s3_file_key)
+                _assert_user_s3_key(user_sub, s3_file_key)
             except ValueError as e:
                 return _response(403, {"error": str(e)})
 
         payload = {
-            "session_id": session_id,
-            "user_sub": session_id,
+            "session_id": user_sub,
+            "user_sub": user_sub,
             "user_email": user_email,
             "message": body["message"],
             "s3_file_key": s3_file_key,
         }
-        new_job_id = _create_chat_job(session_id, payload)
+        new_job_id = _create_chat_job(user_sub, payload)
         return _response(202, {"job_id": new_job_id, "status": "pending"})
 
     return _response(404, {"error": f"Not found: {method} {path}"})
