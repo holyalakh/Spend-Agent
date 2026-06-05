@@ -23,6 +23,7 @@ BUCKET = os.environ["S3_BUCKET_NAME"]
 
 PATCH_FILES = [
     "main.py",
+    "harness.py",
     "hooks.py",
     "memory.py",
     "session_store.py",
@@ -86,6 +87,7 @@ def main():
                 "arn:aws:bedrock:ap-south-1:387957186026:inference-profile/global.anthropic.claude-sonnet-4-5-20250929-v1:0",
             ),
             "MAX_ROWS_RETURNED": os.environ.get("MAX_ROWS_RETURNED", "500"),
+            "MAX_TOOL_CALLS": os.environ.get("MAX_TOOL_CALLS", "15"),
         }
 
         client = boto3.client("bedrock-agentcore-control", region_name=REGION)

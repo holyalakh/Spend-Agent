@@ -2,15 +2,13 @@ import os
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from fastapi import FastAPI
-from strands import Agent
 from strands.models import BedrockModel
 
-from hooks import ReadOnlySqlHooks
+from harness import run_with_harness
 from memory import create_session_manager
 from session_store import SessionStore
-from tools.dashboard import _aggregate, get_dashboard_data
-from tools.load_data import _load_and_register, _load_user_data, load_spend_data, load_user_data
-from tools.query import run_analysis_query
+from tools.dashboard import _aggregate
+from tools.load_data import _load_and_register, _load_user_data
 
 SYSTEM_PROMPT = """
 You are a spend analytics assistant. You have access to structured spend data loaded
@@ -28,7 +26,8 @@ When a user asks a question:
 6. If a question is ambiguous, ask a clarifying question before querying.
 7. Never perform write operations on the data.
 
-Available tools: load_user_data, load_spend_data, run_analysis_query, get_dashboard_data.
+Available tools: load_user_data, load_spend_data, run_analysis_query, get_dashboard_data,
+get_harness_log.
 User data is loaded automatically at session start from uploads/{user_sub}/ in S3.
 """
 
@@ -86,18 +85,14 @@ async def chat(payload: dict) -> dict:
         except Exception as e:
             print(f"auto load_user_data exception: {e}")
 
-    agent = Agent(
-        model=model,
-        system_prompt=system_prompt,
-        tools=[load_user_data, load_spend_data, run_analysis_query, get_dashboard_data],
-        session_manager=session_manager,
-        hooks=[ReadOnlySqlHooks()],
-    )
-
-    if s3_key:
-        store.set(session_id, "s3_key", s3_key)
-
-    result = await agent.invoke_async(message)
+    harness_payload = {
+        "message": message,
+        "system_prompt": system_prompt,
+        "session_manager": session_manager,
+        "user_sub": user_sub,
+        "s3_key": s3_key,
+    }
+    result = await run_with_harness(harness_payload, session_id)
 
     if hasattr(result, "stop_reason") and result.stop_reason == "guardrail_intervened":
         return {
